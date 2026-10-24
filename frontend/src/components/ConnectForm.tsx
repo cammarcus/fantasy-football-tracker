@@ -91,7 +91,7 @@ export default function ConnectForm({ initial, onConnect }: Props) {
             <li>Open developer tools (F12, or Cmd+Option+I on a Mac).</li>
             <li>
               Go to <strong>Application</strong> (Chrome/Edge) or <strong>Storage</strong> (Firefox), then{" "}
-              <strong>Cookies</strong> → <strong>espn.com</strong>.
+              <strong>Cookies</strong> → <strong>https://fantasy.espn.com</strong>.
             </li>
             <li>
               Copy the values of <code>SWID</code> and <code>espn_s2</code>.
