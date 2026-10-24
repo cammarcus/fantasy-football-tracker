@@ -12,6 +12,7 @@ const INJURY_SHORT: Record<string, string> = {
   NA: "NA",
   DNR: "DNR",
   COV: "COV",
+  DAY_TO_DAY: "DTD",
 };
 
 // ESPN uses QUESTIONABLE / INJURY_RESERVE; Sleeper uses Questionable / IR.

@@ -4,10 +4,16 @@ import { useEffect, useState } from "react";
 import { fetchLeagues } from "@/lib/api";
 import { clearCredentials, Credentials, loadCredentials, saveCredentials } from "@/lib/credentials";
 import { PLATFORM_LABEL } from "@/lib/format";
+import { lineupAlerts, ownedPlayers, startSitMismatches } from "@/lib/insights";
 import type { LeaguesResponse } from "@/lib/types";
 import ConnectForm from "./ConnectForm";
+import Exposure from "./Exposure";
 import LeagueCard from "./LeagueCard";
 import LeagueDetail from "./LeagueDetail";
+import LineupCheck from "./LineupCheck";
+
+const VIEWS = ["Leagues", "Lineup check", "Exposure"] as const;
+type View = (typeof VIEWS)[number];
 
 type Data =
   | { status: "loading" }
@@ -21,6 +27,7 @@ export default function Dashboard() {
   const [data, setData] = useState<Data>({ status: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
+  const [view, setView] = useState<View>("Leagues");
 
   useEffect(() => {
     if (!creds) return;
@@ -71,6 +78,7 @@ export default function Dashboard() {
 
   const leagues = data.status === "ready" ? data.result.leagues : [];
   const league = leagues.find((l) => `${l.platform}:${l.league_id}` === selected);
+  const issueCount = lineupAlerts(leagues).length + startSitMismatches(ownedPlayers(leagues)).length;
 
   if (league) {
     return <LeagueDetail league={league} creds={creds} onBack={() => setSelected(null)} />;
@@ -120,15 +128,41 @@ export default function Dashboard() {
           {leagues.length === 0 && data.result.errors.length === 0 && (
             <p className="text-sm text-zinc-500">No leagues found for this season.</p>
           )}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {leagues.map((l) => (
-              <LeagueCard
-                key={`${l.platform}:${l.league_id}`}
-                league={l}
-                onOpen={() => setSelected(`${l.platform}:${l.league_id}`)}
-              />
-            ))}
-          </div>
+          {leagues.length > 0 && (
+            <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+              {VIEWS.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
+                    v === view
+                      ? "border-zinc-900 dark:border-zinc-100"
+                      : "border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  {v}
+                  {v === "Lineup check" && issueCount > 0 && (
+                    <span className="rounded-full bg-red-100 px-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+                      {issueCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          {view === "Leagues" && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {leagues.map((l) => (
+                <LeagueCard
+                  key={`${l.platform}:${l.league_id}`}
+                  league={l}
+                  onOpen={() => setSelected(`${l.platform}:${l.league_id}`)}
+                />
+              ))}
+            </div>
+          )}
+          {view === "Lineup check" && <LineupCheck leagues={leagues} />}
+          {view === "Exposure" && <Exposure leagues={leagues} />}
         </>
       )}
     </div>
