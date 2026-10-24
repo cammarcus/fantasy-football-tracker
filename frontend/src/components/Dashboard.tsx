@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchLeagues } from "@/lib/api";
 import { clearCredentials, Credentials, loadCredentials, saveCredentials } from "@/lib/credentials";
 import { PLATFORM_LABEL } from "@/lib/format";
-import { lineupAlerts, ownedPlayers, startSitMismatches } from "@/lib/insights";
+import { lineupAlerts, ownedPlayers, reversedPairs, unpairedMismatches } from "@/lib/insights";
 import type { LeaguesResponse } from "@/lib/types";
 import ConnectForm from "./ConnectForm";
 import Exposure from "./Exposure";
@@ -80,10 +80,12 @@ export default function Dashboard() {
 
   const leagues = data.status === "ready" ? data.result.leagues : [];
   const league = leagues.find((l) => `${l.platform}:${l.league_id}` === selected);
-  const issueCount = lineupAlerts(leagues, nfl).length + startSitMismatches(ownedPlayers(leagues, nfl)).length;
+  const owned = ownedPlayers(leagues, nfl);
+  const pairs = reversedPairs(owned);
+  const issueCount = lineupAlerts(leagues, nfl).length + pairs.length + unpairedMismatches(owned, pairs).length;
 
   if (league) {
-    return <LeagueDetail league={league} creds={creds} onBack={() => setSelected(null)} />;
+    return <LeagueDetail league={league} leagues={leagues} creds={creds} onBack={() => setSelected(null)} />;
   }
 
   return (

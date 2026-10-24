@@ -1,7 +1,7 @@
 // Cross-league insights, computed from the /api/leagues response on the client.
 
 import { BENCH_SLOTS, myTeam } from "./format";
-import { effectiveInjuryStatus, NflIndex, normalizeName } from "./nfl";
+import { effectiveInjuryStatus, NflIndex, normalizeName, PlayerRef } from "./nfl";
 import type { InjuryReport, League, Player } from "./types";
 
 export type Severity = "out" | "risk";
@@ -60,7 +60,7 @@ function normalizePosition(position: string): string {
 
 // ESPN and Sleeper use different player IDs, so players are matched by name.
 // Defenses are named differently ("Titans D/ST" vs "Tennessee Titans"), so they match on NFL team.
-export function playerKey(p: Player): string {
+export function playerKey(p: PlayerRef): string {
   const position = normalizePosition(p.position);
   if (position === "DEF") return `DEF:${p.nfl_team}`;
   return `${normalizeName(p.name)}:${position}`;
@@ -110,6 +110,93 @@ export function startSitMismatches(owned: OwnedPlayer[]): OwnedPlayer[] {
   return owned.filter(
     (p) => p.placements.some((pl) => pl.started) && p.placements.some((pl) => pl.player.slot === "BE"),
   );
+}
+
+// Two players at the same position whose start/bench order flips between leagues:
+// "a" starts over "b" in aOverB, and "b" starts over "a" in bOverA.
+export interface ReversedPair {
+  a: OwnedPlayer;
+  b: OwnedPlayer;
+  aOverB: League[];
+  bOverA: League[];
+}
+
+function startsOver(x: OwnedPlayer, y: OwnedPlayer): League[] {
+  return x.placements
+    .filter((px) => px.started)
+    .map((px) => px.league)
+    .filter((league) => y.placements.some((py) => py.league === league && py.player.slot === "BE"));
+}
+
+export function reversedPairs(owned: OwnedPlayer[]): ReversedPair[] {
+  const candidates = owned.filter((p) => p.placements.length > 1);
+  const pairs: ReversedPair[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const [a, b] = [candidates[i], candidates[j]];
+      if (a.position !== b.position) continue;
+      const aOverB = startsOver(a, b);
+      const bOverA = startsOver(b, a);
+      if (aOverB.length && bOverA.length) pairs.push({ a, b, aOverB, bOverA });
+    }
+  }
+  return pairs.sort((x, y) => y.aOverB.length + y.bOverA.length - (x.aOverB.length + x.bOverA.length));
+}
+
+// Mismatches not already explained by a reversed pair: the player sits on the bench (BE) in some league
+// that none of their reversed pairs covers.
+export function unpairedMismatches(owned: OwnedPlayer[], pairs: ReversedPair[]): OwnedPlayer[] {
+  return startSitMismatches(owned).filter((p) => {
+    const covered = new Set<League>();
+    for (const pair of pairs) {
+      if (pair.a === p) pair.bOverA.forEach((l) => covered.add(l));
+      if (pair.b === p) pair.aOverB.forEach((l) => covered.add(l));
+    }
+    return p.placements.some((pl) => pl.player.slot === "BE" && !covered.has(pl.league));
+  });
+}
+
+// My starters in a league at the same position as a benched player: who is playing instead of them.
+export function startingInstead(league: League, benched: Player): Player[] {
+  const position = normalizePosition(benched.position);
+  return (myTeam(league)?.roster ?? []).filter((p) => isStarter(p) && normalizePosition(p.position) === position);
+}
+
+export interface AvailableStarter {
+  player: OwnedPlayer;
+  startedIn: League[];
+  availableIn: League[];
+}
+
+// Players you start somewhere who aren't on any roster in another of your leagues. They may be on
+// waivers rather than free agents: league data doesn't say which.
+export function availableElsewhere(leagues: League[], owned: OwnedPlayer[]): AvailableStarter[] {
+  const mine = leagues.filter((l) => myTeam(l));
+  const rostered = new Map<League, Set<string>>();
+  const positions = new Map<League, Set<string>>();
+  for (const league of mine) {
+    const players = league.teams.flatMap((t) => t.roster);
+    rostered.set(league, new Set(players.map(playerKey)));
+    // A position nobody rosters (kickers in a no-K league, IDP) probably isn't used there.
+    positions.set(league, new Set(players.map((p) => normalizePosition(p.position))));
+  }
+  const result: AvailableStarter[] = [];
+  for (const player of owned) {
+    const startedIn = player.placements.filter((pl) => pl.started).map((pl) => pl.league);
+    if (!startedIn.length) continue;
+    const availableIn = mine.filter(
+      (l) => !rostered.get(l)!.has(player.key) && positions.get(l)!.has(player.position),
+    );
+    if (availableIn.length) result.push({ player, startedIn, availableIn });
+  }
+  return result;
+}
+
+// Where each player is on your team, keyed by playerKey, so a list of free agents can be checked against it.
+export function myLeaguesByPlayer(leagues: League[]): Map<string, Placement[]> {
+  const byKey = new Map<string, Placement[]>();
+  for (const owned of ownedPlayers(leagues, null)) byKey.set(owned.key, owned.placements);
+  return byKey;
 }
 
 // Starters who won't play (bye, out) or might not (questionable).

@@ -1,16 +1,21 @@
 "use client";
 
 import {
+  AvailableStarter,
+  availableElsewhere,
   FlexSwap,
   flexSwaps,
   LineupAlert,
   lineupAlerts,
   OwnedPlayer,
   ownedPlayers,
-  startSitMismatches,
+  ReversedPair,
+  reversedPairs,
+  startingInstead,
+  unpairedMismatches,
 } from "@/lib/insights";
 import { timeAgo } from "@/lib/nfl";
-import type { League } from "@/lib/types";
+import type { League, Player } from "@/lib/types";
 import GameLine from "./GameLine";
 import { useNfl } from "./NflContext";
 import PlatformBadge from "./PlatformBadge";
@@ -19,7 +24,10 @@ import { InjuryTag } from "./RosterTable";
 export default function LineupCheck({ leagues }: { leagues: League[] }) {
   const { nfl, error, refreshing, refreshInjuries } = useNfl();
   const alerts = lineupAlerts(leagues, nfl);
-  const mismatches = startSitMismatches(ownedPlayers(leagues, nfl));
+  const owned = ownedPlayers(leagues, nfl);
+  const pairs = reversedPairs(owned);
+  const mismatches = unpairedMismatches(owned, pairs);
+  const available = availableElsewhere(leagues, owned);
   const swaps = flexSwaps(leagues, nfl);
 
   return (
@@ -90,12 +98,34 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
             different scoring), but it&apos;s often a lineup that wasn&apos;t updated.
           </p>
         </div>
-        {mismatches.length === 0 ? (
+        {pairs.length === 0 && mismatches.length === 0 ? (
           <AllClear>Your lineups agree everywhere.</AllClear>
         ) : (
           <ul className="space-y-3">
+            {pairs.map((pair) => (
+              <PairRow key={`${pair.a.key}|${pair.b.key}`} pair={pair} />
+            ))}
             {mismatches.map((p) => (
               <MismatchRow key={p.key} player={p} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-semibold">Your starters on other leagues&apos; waiver wires</h2>
+          <p className="text-sm text-zinc-500">
+            Players you start in one league who aren&apos;t on any roster in another. They may be on waivers (claim
+            needed) rather than free agents.
+          </p>
+        </div>
+        {available.length === 0 ? (
+          <AllClear>None of your starters are sitting unclaimed in your other leagues.</AllClear>
+        ) : (
+          <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+            {available.map((a) => (
+              <AvailableRow key={a.player.key} item={a} />
             ))}
           </ul>
         )}
@@ -193,9 +223,76 @@ function MismatchRow({ player }: { player: OwnedPlayer }) {
               {started ? `Starting (${p.slot})` : p.slot === "BE" ? "Bench" : p.slot}
             </span>
             <LeagueLabel league={league} />
+            {p.slot === "BE" && <StartingInstead league={league} benched={p} />}
           </li>
         ))}
       </ul>
+    </li>
+  );
+}
+
+function StartingInstead({ league, benched }: { league: League; benched: Player }) {
+  const instead = startingInstead(league, benched);
+  if (!instead.length) return null;
+  return (
+    <span className="min-w-0 truncate text-xs text-zinc-500">
+      for {instead.map((p) => `${p.name} (${p.slot})`).join(", ")}
+    </span>
+  );
+}
+
+function PairRow({ pair }: { pair: ReversedPair }) {
+  const { a, b, aOverB, bOverA } = pair;
+  return (
+    <li className="rounded-lg border border-amber-200 p-3 dark:border-amber-900">
+      <p className="text-sm font-medium">
+        {a.name} and {b.name}
+        <span className="ml-2 text-xs font-normal text-zinc-500">{a.position}</span>
+      </p>
+      <p className="text-xs text-zinc-500">Opposite start/bench calls in different leagues.</p>
+      <ul className="mt-2 space-y-1">
+        {[
+          { leagues: aOverB, start: a, sit: b },
+          { leagues: bOverA, start: b, sit: a },
+        ].flatMap(({ leagues, start, sit }) =>
+          leagues.map((league) => (
+            <li key={`${league.platform}:${league.league_id}`} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">
+                <span className="text-emerald-700 dark:text-emerald-400">Start {start.name}</span>
+                <span className="text-zinc-500"> · bench {sit.name}</span>
+              </span>
+              <LeagueLabel league={league} />
+            </li>
+          )),
+        )}
+      </ul>
+    </li>
+  );
+}
+
+function AvailableRow({ item }: { item: AvailableStarter }) {
+  const { player, startedIn, availableIn } = item;
+  return (
+    <li className="space-y-1 px-3 py-2 text-sm">
+      <p>
+        <span className="font-medium">{player.name}</span>
+        <InjuryTag status={player.injuryStatus} />
+        <span className="ml-2 text-xs text-zinc-500">
+          {player.position} · {player.nflTeam}
+        </span>
+      </p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+        <span>Starting in</span>
+        {startedIn.map((l) => (
+          <LeagueLabel key={`${l.platform}:${l.league_id}`} league={l} />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-emerald-700 dark:text-emerald-400">
+        <span>Available in</span>
+        {availableIn.map((l) => (
+          <LeagueLabel key={`${l.platform}:${l.league_id}`} league={l} />
+        ))}
+      </div>
     </li>
   );
 }

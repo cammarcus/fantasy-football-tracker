@@ -13,10 +13,12 @@ type Tab = (typeof TABS)[number];
 
 export default function LeagueDetail({
   league,
+  leagues,
   creds,
   onBack,
 }: {
   league: League;
+  leagues: League[];
   creds: Credentials;
   onBack: () => void;
 }) {
@@ -117,7 +119,7 @@ export default function LeagueDetail({
         </div>
       )}
 
-      {tab === "Waiver wire" && <WaiverWire league={league} creds={creds} />}
+      {tab === "Waiver wire" && <WaiverWire league={league} leagues={leagues} creds={creds} />}
     </div>
   );
 }
