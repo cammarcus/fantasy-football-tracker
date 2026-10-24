@@ -132,3 +132,77 @@ export function lineupAlerts(leagues: League[], nfl: NflIndex | null): LineupAle
   }
   return alerts.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "out" ? -1 : 1));
 }
+
+// Positions each flex slot accepts. ESPN: RB/WR/TE, WR/TE, RB/WR, OP (superflex), DP (IDP).
+// Sleeper: FLEX, SUPER_FLEX, REC_FLEX, WRRB_FLEX, IDP_FLEX.
+const FLEX_SLOT_POSITIONS: Record<string, Set<string>> = {
+  "RB/WR/TE": new Set(["RB", "WR", "TE"]),
+  "WR/TE": new Set(["WR", "TE"]),
+  "RB/WR": new Set(["RB", "WR"]),
+  OP: new Set(["QB", "RB", "WR", "TE"]),
+  DP: new Set(["DT", "DE", "LB", "DL", "CB", "S", "DB"]),
+  FLEX: new Set(["RB", "WR", "TE"]),
+  SUPER_FLEX: new Set(["QB", "RB", "WR", "TE"]),
+  REC_FLEX: new Set(["WR", "TE"]),
+  WRRB_FLEX: new Set(["WR", "RB"]),
+  IDP_FLEX: new Set(["DL", "LB", "DB"]),
+};
+
+export interface FlexSwap {
+  league: League;
+  flex: Player; // plays earlier, should move to the positional slot
+  positional: Player; // plays later, should move to flex
+  flexKickoff: string;
+  positionalKickoff: string;
+}
+
+// Kickoff time for a player's game, only if it hasn't started (started games lock the player).
+function upcomingKickoff(player: Player, nfl: NflIndex): number | null {
+  const game = nfl.game(player.nfl_team);
+  if (!game || game.state !== "scheduled") return null;
+  return new Date(game.kickoff).getTime();
+}
+
+// A flex starter who plays before a positional starter they could swap with. Putting the later player
+// in flex keeps the most options open: if a late player is ruled out, any flex-eligible player can
+// still replace them, not just one at their position.
+export function flexSwaps(leagues: League[], nfl: NflIndex | null): FlexSwap[] {
+  if (!nfl) return [];
+  const swaps: FlexSwap[] = [];
+  for (const league of leagues) {
+    const me = myTeam(league);
+    if (!me) continue;
+    const starters = me.roster.filter(isStarter);
+    const positional = starters.filter((p) => !FLEX_SLOT_POSITIONS[p.slot]);
+    // Earliest flex players first: they gain the most from moving.
+    const flex = starters
+      .filter((p) => FLEX_SLOT_POSITIONS[p.slot])
+      .map((p) => ({ player: p, kickoff: upcomingKickoff(p, nfl) }))
+      .filter((f): f is { player: Player; kickoff: number } => f.kickoff !== null)
+      .sort((a, b) => a.kickoff - b.kickoff);
+    const used = new Set<string>();
+    for (const f of flex) {
+      const allowed = FLEX_SLOT_POSITIONS[f.player.slot];
+      let best: { player: Player; kickoff: number } | null = null;
+      for (const p of positional) {
+        if (used.has(p.player_id)) continue;
+        // The flex player must fit the positional slot, and the positional player must fit the flex.
+        if (normalizePosition(p.slot) !== normalizePosition(f.player.position)) continue;
+        if (!allowed.has(normalizePosition(p.position))) continue;
+        const kickoff = upcomingKickoff(p, nfl);
+        if (kickoff === null || kickoff <= f.kickoff) continue;
+        if (!best || kickoff > best.kickoff) best = { player: p, kickoff };
+      }
+      if (!best) continue;
+      used.add(best.player.player_id);
+      swaps.push({
+        league,
+        flex: f.player,
+        positional: best.player,
+        flexKickoff: nfl.game(f.player.nfl_team)!.kickoff,
+        positionalKickoff: nfl.game(best.player.nfl_team)!.kickoff,
+      });
+    }
+  }
+  return swaps;
+}

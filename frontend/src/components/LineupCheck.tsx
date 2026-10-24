@@ -1,6 +1,14 @@
 "use client";
 
-import { LineupAlert, lineupAlerts, OwnedPlayer, ownedPlayers, startSitMismatches } from "@/lib/insights";
+import {
+  FlexSwap,
+  flexSwaps,
+  LineupAlert,
+  lineupAlerts,
+  OwnedPlayer,
+  ownedPlayers,
+  startSitMismatches,
+} from "@/lib/insights";
 import { timeAgo } from "@/lib/nfl";
 import type { League } from "@/lib/types";
 import GameLine from "./GameLine";
@@ -12,6 +20,7 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
   const { nfl, error, refreshing, refreshInjuries } = useNfl();
   const alerts = lineupAlerts(leagues, nfl);
   const mismatches = startSitMismatches(ownedPlayers(leagues, nfl));
+  const swaps = flexSwaps(leagues, nfl);
 
   return (
     <div className="space-y-8">
@@ -48,6 +57,30 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
           </ul>
         )}
       </section>
+
+      {nfl && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-semibold">Flex order</h2>
+            <p className="text-sm text-zinc-500">
+              Put later games in your flex. If a late player is ruled out, anyone flex-eligible can replace them,
+              not just a player at the same position.
+            </p>
+          </div>
+          {swaps.length === 0 ? (
+            <AllClear>Your flex spots already hold your latest games.</AllClear>
+          ) : (
+            <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+              {swaps.map((swap) => (
+                <SwapRow
+                  key={`${swap.league.platform}:${swap.league.league_id}:${swap.flex.player_id}`}
+                  swap={swap}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="space-y-3">
         <div>
@@ -106,6 +139,34 @@ function AlertRow({ alert }: { alert: LineupAlert }) {
           <GameLine team={player.nfl_team} />
         </div>
       )}
+    </li>
+  );
+}
+
+function kickoffLabel(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+}
+
+function SwapRow({ swap }: { swap: FlexSwap }) {
+  const { league, flex, positional, flexKickoff, positionalKickoff } = swap;
+  return (
+    <li className="space-y-1 px-3 py-2 text-sm">
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 flex-1">
+          Swap <span className="font-medium">{flex.name}</span>
+          <span className="ml-1 text-xs text-zinc-500">
+            ({flex.slot}, {kickoffLabel(flexKickoff)})
+          </span>{" "}
+          and <span className="font-medium">{positional.name}</span>
+          <span className="ml-1 text-xs text-zinc-500">
+            ({positional.slot}, {kickoffLabel(positionalKickoff)})
+          </span>
+        </span>
+        <LeagueLabel league={league} />
+      </div>
+      <p className="text-xs text-zinc-500">
+        Move {positional.name} to {flex.slot} and {flex.name} to {positional.slot}.
+      </p>
     </li>
   );
 }
