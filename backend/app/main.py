@@ -1,13 +1,25 @@
 import asyncio
+import os
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .espn_client import get_espn_leagues, get_espn_waivers
 from .models import LeaguesRequest, LeaguesResponse, WaiversRequest, WaiversResponse
 from .sleeper_client import get_nfl_state, get_sleeper_leagues, get_sleeper_waivers
 
 app = FastAPI(title="Fantasy Football Tracker")
+
+# Comma-separated list of frontend origins allowed to call the API.
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 @app.get("/api/health")
