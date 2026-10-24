@@ -1,0 +1,4 @@
+fastapi
+uvicorn[standard]
+httpx
+espn-api==1.0.1
