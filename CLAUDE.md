@@ -30,7 +30,14 @@ cd backend && python scripts/fetch_leagues.py [--json] [--waivers --position RB]
 ```
 
 `backend/.env` (git-ignored, local testing only) holds `ESPN_SWID`, `ESPN_S2`, `SLEEPER_USERNAME`.
-Env vars: `ALLOWED_ORIGINS` (backend CORS, comma-separated) and `NEXT_PUBLIC_API_URL` (frontend).
+Env vars: `ALLOWED_ORIGINS` (backend CORS, comma-separated), `NEXT_PUBLIC_API_URL` (frontend, optional: by
+default the frontend calls `/api` on its own origin) and `API_PROXY_TARGET` (where `next dev` proxies `/api`,
+default `http://127.0.0.1:8000`).
+
+**Deploying:** `vercel.json` deploys both apps as one Vercel project with services. `/api/*` goes to the FastAPI
+`backend` service (entrypoint `app.main:app`; it sees the full `/api/...` path) and everything else goes to
+`frontend`. The browser calls the backend directly, so there are no service bindings. Vercel runs Python 3.12
+(3.11 isn't offered). `vercel dev` runs both services locally (needs Vercel CLI 48.1.8+).
 
 Checks: `cd frontend && npx eslint src && npx tsc --noEmit && npm run build`. If `tsc` complains about
 `LayoutProps`, run the build first; Next generates that type.
@@ -84,4 +91,6 @@ Checks: `cd frontend && npx eslint src && npx tsc --noEmit && npm run build`. If
   only works when running locally; a hosted site would need a cookie-paste guide or a browser extension.
 - Sleeper as a fallback source for injuries and schedule if ESPN's endpoints break.
 - Live per-player scoring, opponent lineups, transactions feed, showing ESPN's `RB/WR/TE` and `D/ST` as
-  `FLEX` and `DEF`, short-term caching of league data, and hosting.
+  `FLEX` and `DEF`, and short-term caching of league data.
+- On Vercel the in-memory caches (Sleeper player DB, NFL data) are per function instance, so they help less
+  than on one long-running server. A shared cache (e.g. Redis) would restore the "keep request volume low" goal.

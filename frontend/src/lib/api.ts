@@ -1,7 +1,8 @@
 import { Credentials, hasEspn, hasSleeper } from "./credentials";
 import type { LeaguesResponse, NflWeek, Platform, WaiversResponse } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+// Same origin by default: Vercel routes /api/* to the backend, and `next dev` proxies it (next.config.ts).
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface AccountsBody {
   espn?: { swid: string; espn_s2: string; league_ids?: number[] }[];
@@ -34,7 +35,7 @@ async function post<T>(path: string, body: object): Promise<T> {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new Error(`Couldn't reach the API at ${API_URL}. Is the backend running?`);
+    throw new Error(`Couldn't reach the API at ${API_URL || "/api"}. Is the backend running?`);
   }
   if (!resp.ok) {
     throw new Error(`The API returned an error (HTTP ${resp.status}).`);
@@ -48,7 +49,7 @@ export async function fetchNflWeek(refreshInjuries = false): Promise<NflWeek> {
   try {
     resp = await fetch(`${API_URL}/api/nfl/week${query}`);
   } catch {
-    throw new Error(`Couldn't reach the API at ${API_URL}. Is the backend running?`);
+    throw new Error(`Couldn't reach the API at ${API_URL || "/api"}. Is the backend running?`);
   }
   if (!resp.ok) throw new Error(`Couldn't load NFL schedule and injuries (HTTP ${resp.status}).`);
   return resp.json() as Promise<NflWeek>;
