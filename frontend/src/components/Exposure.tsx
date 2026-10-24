@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { ownedPlayers, startedCount } from "@/lib/insights";
 import type { League } from "@/lib/types";
+import GameLine from "./GameLine";
 import { LeagueLabel } from "./LineupCheck";
+import { useNfl } from "./NflContext";
 import { InjuryTag } from "./RosterTable";
 
 export default function Exposure({ leagues }: { leagues: League[] }) {
   const [multiOnly, setMultiOnly] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  const { nfl } = useNfl();
   const leagueCount = leagues.filter((l) => l.my_team_id).length;
-  const all = ownedPlayers(leagues);
+  const all = ownedPlayers(leagues, nfl);
   const players = multiOnly ? all.filter((p) => p.placements.length > 1) : all;
 
   return (
@@ -60,6 +63,7 @@ export default function Exposure({ leagues }: { leagues: League[] }) {
                           <span className="ml-2 text-xs text-zinc-500">
                             {p.position} · {p.nflTeam}
                           </span>
+                          <GameLine team={p.nflTeam} />
                         </td>
                         <td className="px-3 py-2 tabular-nums">{owned}</td>
                         <td className="px-3 py-2 tabular-nums">{started}</td>

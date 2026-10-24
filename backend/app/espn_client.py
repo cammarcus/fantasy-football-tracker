@@ -5,6 +5,7 @@ from espn_api.football import League as EspnLeague
 from espn_api.requests.espn_requests import ESPNAccessDenied, ESPNInvalidLeague, ESPNUnknownError
 
 from .models import EspnCredentials, FreeAgent, League, LeagueError, LeagueWaivers, Matchup, Player, Team
+from .teams import normalize_team
 
 ESPN_FAN_URL = "https://fan.api.espn.com/apis/v2/fans/{swid}"
 ESPN_FOOTBALL_ABBREV = "FFL"
@@ -101,7 +102,7 @@ def _load_league(league_id: int, season: int, swid: str, espn_s2: str, team_id: 
                     player_id=str(p.playerId),
                     name=p.name,
                     position=p.position,
-                    nfl_team=p.proTeam,
+                    nfl_team=normalize_team(p.proTeam),
                     slot=p.lineupSlot,
                     injury_status=_injury_status(p),
                 )
@@ -148,7 +149,7 @@ def _load_waivers(
             player_id=str(p.playerId),
             name=p.name,
             position=p.position,
-            nfl_team=p.proTeam,
+            nfl_team=normalize_team(p.proTeam),
             injury_status=_injury_status(p),
             percent_owned=p.percent_owned,
             projected_points=round(p.projected_points, 2),

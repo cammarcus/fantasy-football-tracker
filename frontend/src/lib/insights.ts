@@ -1,12 +1,25 @@
 // Cross-league insights, computed from the /api/leagues response on the client.
 
 import { BENCH_SLOTS, myTeam } from "./format";
-import type { League, Player } from "./types";
+import { effectiveInjuryStatus, NflIndex, normalizeName } from "./nfl";
+import type { InjuryReport, League, Player } from "./types";
 
 export type Severity = "out" | "risk";
 
 // Statuses that mean the player won't (or likely won't) play this week.
-const OUT_STATUSES = new Set(["OUT", "INJURY_RESERVE", "IR", "SUSPENSION", "SUS", "PUP", "NA", "DNR", "COV", "DOUBTFUL"]);
+const OUT_STATUSES = new Set([
+  "OUT",
+  "INJURY_RESERVE",
+  "INJURED_RESERVE",
+  "IR",
+  "SUSPENSION",
+  "SUS",
+  "PUP",
+  "NA",
+  "DNR",
+  "COV",
+  "DOUBTFUL",
+]);
 const RISK_STATUSES = new Set(["QUESTIONABLE", "DAY_TO_DAY"]);
 
 export function injurySeverity(status: string | null): Severity | null {
@@ -36,9 +49,10 @@ export interface LineupAlert {
   league: League;
   player: Player;
   severity: Severity;
+  reason: "bye" | "injury";
+  status: string | null;
+  report: InjuryReport | undefined;
 }
-
-const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
 
 function normalizePosition(position: string): string {
   return position === "D/ST" ? "DEF" : position;
@@ -49,23 +63,14 @@ function normalizePosition(position: string): string {
 export function playerKey(p: Player): string {
   const position = normalizePosition(p.position);
   if (position === "DEF") return `DEF:${p.nfl_team}`;
-  const name = p.name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[.'’]/g, "")
-    .replace(/-/g, " ")
-    .split(/\s+/)
-    .filter((part) => part && !SUFFIXES.has(part))
-    .join(" ");
-  return `${name}:${position}`;
+  return `${normalizeName(p.name)}:${position}`;
 }
 
 export function isStarter(p: Player): boolean {
   return !BENCH_SLOTS.has(p.slot);
 }
 
-export function ownedPlayers(leagues: League[]): OwnedPlayer[] {
+export function ownedPlayers(leagues: League[], nfl: NflIndex | null): OwnedPlayer[] {
   const byKey = new Map<string, OwnedPlayer>();
   for (const league of leagues) {
     const me = myTeam(league);
@@ -79,12 +84,11 @@ export function ownedPlayers(leagues: League[]): OwnedPlayer[] {
           name: player.name,
           position: normalizePosition(player.position),
           nflTeam: player.nfl_team,
-          injuryStatus: player.injury_status || null,
+          injuryStatus: effectiveInjuryStatus(player, nfl),
           placements: [],
         };
         byKey.set(key, owned);
       }
-      owned.injuryStatus ??= player.injury_status || null;
       owned.placements.push({ league, player, started: isStarter(player) });
     }
   }
@@ -108,14 +112,22 @@ export function startSitMismatches(owned: OwnedPlayer[]): OwnedPlayer[] {
   );
 }
 
-export function lineupAlerts(leagues: League[]): LineupAlert[] {
+// Starters who won't play (bye, out) or might not (questionable).
+export function lineupAlerts(leagues: League[], nfl: NflIndex | null): LineupAlert[] {
   const alerts: LineupAlert[] = [];
   for (const league of leagues) {
     const me = myTeam(league);
     if (!me) continue;
     for (const player of me.roster) {
-      const severity = injurySeverity(player.injury_status);
-      if (severity && isStarter(player)) alerts.push({ league, player, severity });
+      if (!isStarter(player)) continue;
+      const report = nfl?.injury(player);
+      const status = effectiveInjuryStatus(player, nfl);
+      if (nfl?.onBye(player.nfl_team)) {
+        alerts.push({ league, player, severity: "out", reason: "bye", status, report });
+        continue;
+      }
+      const severity = injurySeverity(status);
+      if (severity) alerts.push({ league, player, severity, reason: "injury", status, report });
     }
   }
   return alerts.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "out" ? -1 : 1));

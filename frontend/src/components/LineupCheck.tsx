@@ -1,38 +1,49 @@
-import { lineupAlerts, OwnedPlayer, ownedPlayers, startSitMismatches } from "@/lib/insights";
+"use client";
+
+import { LineupAlert, lineupAlerts, OwnedPlayer, ownedPlayers, startSitMismatches } from "@/lib/insights";
+import { timeAgo } from "@/lib/nfl";
 import type { League } from "@/lib/types";
+import GameLine from "./GameLine";
+import { useNfl } from "./NflContext";
 import PlatformBadge from "./PlatformBadge";
 import { InjuryTag } from "./RosterTable";
 
 export default function LineupCheck({ leagues }: { leagues: League[] }) {
-  const alerts = lineupAlerts(leagues);
-  const mismatches = startSitMismatches(ownedPlayers(leagues));
+  const { nfl, error, refreshing, refreshInjuries } = useNfl();
+  const alerts = lineupAlerts(leagues, nfl);
+  const mismatches = startSitMismatches(ownedPlayers(leagues, nfl));
 
   return (
     <div className="space-y-8">
       <section className="space-y-3">
-        <div>
-          <h2 className="font-semibold">Injured starters</h2>
-          <p className="text-sm text-zinc-500">Starters who are out, doubtful or questionable this week.</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Starters who may not play</h2>
+            <p className="text-sm text-zinc-500">
+              On a bye, out, doubtful or questionable this week.
+              {nfl && <> Injury reports updated {timeAgo(nfl.week.injuries_updated_at)}.</>}
+            </p>
+          </div>
+          <button
+            onClick={refreshInjuries}
+            disabled={refreshing}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          >
+            {refreshing ? "Refreshing…" : "Refresh injuries"}
+          </button>
         </div>
+        {error && (
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            Couldn&apos;t load the NFL schedule and injury reports, so byes aren&apos;t checked and injuries come from
+            your leagues only. ({error})
+          </p>
+        )}
         {alerts.length === 0 ? (
-          <AllClear>No injured starters in any league.</AllClear>
+          <AllClear>Every starter is healthy and playing this week.</AllClear>
         ) : (
           <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-            {alerts.map(({ league, player, severity }) => (
-              <li key={`${league.platform}:${league.league_id}:${player.player_id}`} className="flex items-center gap-3 px-3 py-2 text-sm">
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${severity === "out" ? "bg-red-500" : "bg-amber-400"}`}
-                  aria-label={severity === "out" ? "Likely out" : "At risk"}
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  {player.name}
-                  <InjuryTag status={player.injury_status} />
-                  <span className="ml-2 text-xs text-zinc-500">
-                    {player.slot} · {player.nfl_team}
-                  </span>
-                </span>
-                <LeagueLabel league={league} />
-              </li>
+            {alerts.map((alert) => (
+              <AlertRow key={`${alert.league.platform}:${alert.league.league_id}:${alert.player.player_id}`} alert={alert} />
             ))}
           </ul>
         )}
@@ -60,6 +71,45 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
   );
 }
 
+function AlertRow({ alert }: { alert: LineupAlert }) {
+  const { league, player, severity, reason, status, report } = alert;
+  return (
+    <li className="space-y-1 px-3 py-2 text-sm">
+      <div className="flex items-center gap-3">
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${severity === "out" ? "bg-red-500" : "bg-amber-400"}`}
+          aria-label={severity === "out" ? "Won't play" : "At risk"}
+        />
+        <span className="min-w-0 flex-1 truncate">
+          {player.name}
+          {reason === "bye" ? (
+            <span className="ml-2 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800 dark:bg-red-950 dark:text-red-300">
+              BYE
+            </span>
+          ) : (
+            <InjuryTag status={status} />
+          )}
+          <span className="ml-2 text-xs text-zinc-500">
+            {player.slot} · {player.nfl_team}
+          </span>
+        </span>
+        <LeagueLabel league={league} />
+      </div>
+      {reason === "injury" && report?.comment && (
+        <p className="pl-5 text-xs text-zinc-500">
+          {report.comment}
+          {report.updated && <span className="text-zinc-400"> · {timeAgo(report.updated)}</span>}
+        </p>
+      )}
+      {reason === "injury" && (
+        <div className="pl-5">
+          <GameLine team={player.nfl_team} />
+        </div>
+      )}
+    </li>
+  );
+}
+
 function MismatchRow({ player }: { player: OwnedPlayer }) {
   return (
     <li className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
@@ -70,6 +120,7 @@ function MismatchRow({ player }: { player: OwnedPlayer }) {
           {player.position} · {player.nflTeam}
         </span>
       </p>
+      <GameLine team={player.nflTeam} />
       <ul className="mt-2 space-y-1">
         {player.placements.map(({ league, player: p, started }) => (
           <li key={`${league.platform}:${league.league_id}`} className="flex items-center gap-2 text-sm">

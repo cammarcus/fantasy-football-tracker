@@ -110,3 +110,35 @@ class LeagueWaivers(BaseModel):
 class WaiversResponse(BaseModel):
     waivers: list[LeagueWaivers]
     errors: list[LeagueError]
+
+
+# --- NFL-wide data (same for every user) ---
+
+
+class NflGame(BaseModel):
+    game_id: str
+    kickoff: str  # ISO 8601, UTC
+    state: Literal["scheduled", "in_progress", "final"]
+    status_detail: str  # e.g. "Final", "Q2 5:32", "10/26 - 1:00 PM EDT"
+    home_team: str
+    away_team: str
+    home_score: int
+    away_score: int
+
+
+class InjuryReport(BaseModel):
+    name: str
+    team: str
+    position: str
+    status: str  # Active, Questionable, Doubtful, Out, Injured Reserve, Suspension
+    comment: str | None = None
+    updated: str | None = None  # ISO 8601
+
+
+class NflWeek(BaseModel):
+    season: int
+    week: int
+    games: list[NflGame]
+    bye_teams: list[str]
+    injuries: list[InjuryReport]
+    injuries_updated_at: str  # when the backend last fetched the injury feed

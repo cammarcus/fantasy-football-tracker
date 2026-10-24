@@ -4,6 +4,7 @@ import time
 import httpx
 
 from .models import FreeAgent, League, LeagueError, LeagueWaivers, Matchup, Player, SleeperCredentials, Team
+from .teams import normalize_team
 
 SLEEPER_BASE_URL = "https://api.sleeper.app/v1"
 PLAYERS_TTL_SECONDS = 24 * 60 * 60
@@ -58,7 +59,7 @@ def _to_player(player_id: str, slot: str, players: dict) -> Player:
         player_id=player_id,
         name=name,
         position=p.get("position") or "?",
-        nfl_team=p.get("team") or "FA",
+        nfl_team=normalize_team(p.get("team")),
         slot=slot,
         injury_status=p.get("injury_status"),
     )
@@ -261,7 +262,7 @@ async def _load_waivers(
                 player_id=pid,
                 name=_to_player(pid, "FA", players).name,
                 position=p["position"],
-                nfl_team=p["team"],
+                nfl_team=normalize_team(p["team"]),
                 injury_status=p.get("injury_status"),
                 trending_adds=trending.get(pid),
             )

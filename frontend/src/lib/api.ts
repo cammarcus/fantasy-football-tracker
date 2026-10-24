@@ -1,5 +1,5 @@
 import { Credentials, hasEspn, hasSleeper } from "./credentials";
-import type { LeaguesResponse, Platform, WaiversResponse } from "./types";
+import type { LeaguesResponse, NflWeek, Platform, WaiversResponse } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -40,6 +40,18 @@ async function post<T>(path: string, body: object): Promise<T> {
     throw new Error(`The API returned an error (HTTP ${resp.status}).`);
   }
   return resp.json() as Promise<T>;
+}
+
+export async function fetchNflWeek(refreshInjuries = false): Promise<NflWeek> {
+  const query = refreshInjuries ? "?refresh_injuries=true" : "";
+  let resp: Response;
+  try {
+    resp = await fetch(`${API_URL}/api/nfl/week${query}`);
+  } catch {
+    throw new Error(`Couldn't reach the API at ${API_URL}. Is the backend running?`);
+  }
+  if (!resp.ok) throw new Error(`Couldn't load NFL schedule and injuries (HTTP ${resp.status}).`);
+  return resp.json() as Promise<NflWeek>;
 }
 
 export function fetchLeagues(creds: Credentials): Promise<LeaguesResponse> {

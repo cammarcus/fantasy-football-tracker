@@ -13,12 +13,15 @@ const INJURY_SHORT: Record<string, string> = {
   DNR: "DNR",
   COV: "COV",
   DAY_TO_DAY: "DTD",
+  INJURED_RESERVE: "IR",
 };
 
-// ESPN uses QUESTIONABLE / INJURY_RESERVE; Sleeper uses Questionable / IR.
+// ESPN fantasy uses QUESTIONABLE / INJURY_RESERVE, Sleeper uses Questionable / IR,
+// and ESPN's injury report uses Questionable / Injured Reserve / Active.
 export function injuryLabel(status: string | null): string | null {
   if (!status) return null;
   const key = status.toUpperCase().replace(/\s+/g, "_");
+  if (key === "ACTIVE" || key === "NORMAL") return null;
   return INJURY_SHORT[key] ?? status;
 }
 

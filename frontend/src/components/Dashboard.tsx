@@ -11,6 +11,7 @@ import Exposure from "./Exposure";
 import LeagueCard from "./LeagueCard";
 import LeagueDetail from "./LeagueDetail";
 import LineupCheck from "./LineupCheck";
+import { useNfl } from "./NflContext";
 
 const VIEWS = ["Leagues", "Lineup check", "Exposure"] as const;
 type View = (typeof VIEWS)[number];
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<View>("Leagues");
+  const { nfl } = useNfl();
 
   useEffect(() => {
     if (!creds) return;
@@ -78,7 +80,7 @@ export default function Dashboard() {
 
   const leagues = data.status === "ready" ? data.result.leagues : [];
   const league = leagues.find((l) => `${l.platform}:${l.league_id}` === selected);
-  const issueCount = lineupAlerts(leagues).length + startSitMismatches(ownedPlayers(leagues)).length;
+  const issueCount = lineupAlerts(leagues, nfl).length + startSitMismatches(ownedPlayers(leagues, nfl)).length;
 
   if (league) {
     return <LeagueDetail league={league} creds={creds} onBack={() => setSelected(null)} />;

@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { fetchWaivers } from "@/lib/api";
 import type { Credentials } from "@/lib/credentials";
+import { effectiveInjuryStatus } from "@/lib/nfl";
 import type { FreeAgent, League } from "@/lib/types";
+import GameLine from "./GameLine";
+import { useNfl } from "./NflContext";
 import { InjuryTag } from "./RosterTable";
 
 const POSITIONS = ["All", "QB", "RB", "WR", "TE", "K", "DEF"];
@@ -42,6 +45,7 @@ export default function WaiverWire({ league, creds }: { league: League; creds: C
   }
 
   const isEspn = league.platform === "espn";
+  const { nfl } = useNfl();
 
   return (
     <div className="space-y-3">
@@ -79,8 +83,9 @@ export default function WaiverWire({ league, creds }: { league: League; creds: C
                 <span className="w-10 shrink-0 text-xs font-medium text-zinc-500">{p.position}</span>
                 <span className="min-w-0 flex-1 truncate">
                   {p.name}
-                  <InjuryTag status={p.injury_status} />
+                  <InjuryTag status={effectiveInjuryStatus(p, nfl)} />
                   <span className="ml-2 text-xs text-zinc-500">{p.nfl_team}</span>
+                  <GameLine team={p.nfl_team} />
                 </span>
                 <span className="shrink-0 text-right text-xs tabular-nums text-zinc-600 dark:text-zinc-400">
                   {isEspn

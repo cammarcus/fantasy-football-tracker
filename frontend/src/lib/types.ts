@@ -75,3 +75,32 @@ export interface WaiversResponse {
   waivers: LeagueWaivers[];
   errors: LeagueError[];
 }
+
+export interface NflGame {
+  game_id: string;
+  kickoff: string;
+  state: "scheduled" | "in_progress" | "final";
+  status_detail: string;
+  home_team: string;
+  away_team: string;
+  home_score: number;
+  away_score: number;
+}
+
+export interface InjuryReport {
+  name: string;
+  team: string;
+  position: string;
+  status: string;
+  comment: string | null;
+  updated: string | null;
+}
+
+export interface NflWeek {
+  season: number;
+  week: number;
+  games: NflGame[];
+  bye_teams: string[];
+  injuries: InjuryReport[];
+  injuries_updated_at: string;
+}
