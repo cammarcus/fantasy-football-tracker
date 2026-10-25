@@ -142,3 +142,26 @@ class NflWeek(BaseModel):
     bye_teams: list[str]
     injuries: list[InjuryReport]
     injuries_updated_at: str  # when the backend last fetched the injury feed
+
+
+# --- Expert rankings (same for every user) ---
+
+
+class Analyst(BaseModel):
+    id: str  # "<source>:<id>", e.g. "espn:6"
+    name: str
+    source: str  # who publishes the ranking, e.g. "ESPN"
+
+
+class PlayerRanking(BaseModel):
+    name: str
+    position: str
+    nfl_team: str
+    ranks: dict[str, int]  # analyst id -> positional rank this week (1 = best)
+
+
+class RankingsWeek(BaseModel):
+    season: int
+    week: int
+    analysts: list[Analyst]
+    players: list[PlayerRanking]

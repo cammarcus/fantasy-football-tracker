@@ -10,6 +10,7 @@ account credentials and the app discovers and loads every league, with no league
   - `app/espn_client.py`: ESPN leagues and waivers via the open-source `espn-api` library.
   - `app/sleeper_client.py`: Sleeper leagues and waivers via Sleeper's public API.
   - `app/nfl_client.py`: NFL schedule, byes and injury reports (ESPN public endpoints, no auth).
+  - `app/rankings_client.py`: each ESPN analyst's weekly positional ranks (no auth), for expert checks.
   - `app/teams.py`: NFL team abbreviation normalization.
   - `scripts/fetch_leagues.py`: CLI that calls the running API using credentials from `backend/.env`.
 - `frontend/`: Next.js 16 + React 19 + Tailwind 4, TypeScript. Client components only.
@@ -72,6 +73,11 @@ Checks: `cd frontend && npx eslint src && npx tsc --noEmit && npm run build`. If
 - **Undocumented endpoints:** ESPN's endpoints (fan API, scoreboard, injuries, `proTeamSchedules_wl`) are
   undocumented. NFL data is cached server-side and shared by all users: games 60s, injuries 10 min (a
   manual refresh at most once a minute), byes 24h. Keep request volume low.
+- **Expert rankings:** ESPN's default league (`leaguedefaults/3`, `kona_player_info`) carries each analyst's weekly
+  PPR positional rank, keyed by `rankSourceId`; `ESPN_ANALYSTS` maps IDs to names (matched by hand against
+  ESPN's published tables, so recheck it each season). The view is ~6 KB per player even with stats filtered out,
+  so it's cached 30 min. Ranks appear mid-week. Users' "I'm aware" / "accident" marks live in localStorage
+  (`lib/marks.ts`). FantasyPros (official API, needs a key) is the planned second source.
 - **Sleeper lineups:** a starter slot of `"0"` means the slot is empty. IR and TAXI players can't start, so
   they're excluded from start/sit mismatch checks.
 
@@ -90,6 +96,11 @@ Checks: `cd frontend && npx eslint src && npx tsc --noEmit && npm run build`. If
 - Interactive ESPN login: open a Playwright window, the user logs in, the app captures the cookies. This
   only works when running locally; a hosted site would need a cookie-paste guide or a browser extension.
 - Sleeper as a fallback source for injuries and schedule if ESPN's endpoints break.
+- Analyst quotes from ESPN's Fantasy Focus Football (feed `feeds.megaphone.fm/ESP7699980268`; hosts include Yates,
+  Clay and Dopp, who are also ranking analysts). The feed has no transcripts, so this needs transcription with speaker
+  labels plus an LLM pass to extract short attributed quotes, a daily job and storage. Prototype one episode first.
+- FantasyPros rankings: held off. Their API terms are personal, non-commercial, key-holder-only, with a broad
+  non-compete, so it can't back a shared lineup tool without written permission.
 - Live per-player scoring, opponent lineups, transactions feed, showing ESPN's `RB/WR/TE` and `D/ST` as
   `FLEX` and `DEF`, and short-term caching of league data.
 - On Vercel the in-memory caches (Sleeper player DB, NFL data) are per function instance, so they help less

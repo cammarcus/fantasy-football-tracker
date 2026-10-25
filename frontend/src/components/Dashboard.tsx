@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { fetchLeagues } from "@/lib/api";
 import { clearCredentials, Credentials, loadCredentials, saveCredentials } from "@/lib/credentials";
 import { PLATFORM_LABEL } from "@/lib/format";
-import { lineupAlerts, ownedPlayers, reversedPairs, unpairedMismatches } from "@/lib/insights";
+import { expertDisagreements, lineupAlerts, ownedPlayers, reversedPairs, unpairedMismatches } from "@/lib/insights";
+import { useMarks } from "@/lib/marks";
 import type { LeaguesResponse } from "@/lib/types";
 import ConnectForm from "./ConnectForm";
 import Exposure from "./Exposure";
@@ -29,7 +30,8 @@ export default function Dashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<View>("Leagues");
-  const { nfl } = useNfl();
+  const { nfl, rankings } = useNfl();
+  const marks = useMarks();
 
   useEffect(() => {
     if (!creds) return;
@@ -82,7 +84,9 @@ export default function Dashboard() {
   const league = leagues.find((l) => `${l.platform}:${l.league_id}` === selected);
   const owned = ownedPlayers(leagues, nfl);
   const pairs = reversedPairs(owned);
-  const issueCount = lineupAlerts(leagues, nfl).length + pairs.length + unpairedMismatches(owned, pairs).length;
+  const unreviewed = expertDisagreements(leagues, nfl, rankings).filter((f) => marks[f.key]?.state !== "aware");
+  const issueCount =
+    lineupAlerts(leagues, nfl).length + pairs.length + unpairedMismatches(owned, pairs).length + unreviewed.length;
 
   if (league) {
     return <LeagueDetail league={league} leagues={leagues} creds={creds} onBack={() => setSelected(null)} />;

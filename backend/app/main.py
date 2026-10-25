@@ -6,8 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .espn_client import get_espn_leagues, get_espn_waivers
-from .models import LeaguesRequest, LeaguesResponse, NflWeek, WaiversRequest, WaiversResponse
+from .models import LeaguesRequest, LeaguesResponse, NflWeek, RankingsWeek, WaiversRequest, WaiversResponse
 from .nfl_client import get_nfl_week
+from .rankings_client import get_rankings
 from .sleeper_client import get_nfl_state, get_sleeper_leagues, get_sleeper_waivers
 
 app = FastAPI(title="Fantasy Football Tracker")
@@ -32,6 +33,12 @@ async def health() -> dict:
 async def nfl_week(refresh_injuries: bool = False) -> NflWeek:
     """This week's NFL games, bye teams and injury reports. No credentials needed."""
     return await get_nfl_week(refresh_injuries)
+
+
+@app.get("/api/rankings", response_model=RankingsWeek)
+async def rankings(season: int | None = None, week: int | None = None) -> RankingsWeek:
+    """Each expert's positional ranks for a week (default: the current week). No credentials needed."""
+    return await get_rankings(season, week)
 
 
 async def _resolve_season(season: int | None) -> int:

@@ -104,3 +104,23 @@ export interface NflWeek {
   injuries: InjuryReport[];
   injuries_updated_at: string;
 }
+
+export interface Analyst {
+  id: string;
+  name: string;
+  source: string;
+}
+
+export interface PlayerRanking {
+  name: string;
+  position: string;
+  nfl_team: string;
+  ranks: Record<string, number>;
+}
+
+export interface RankingsWeek {
+  season: number;
+  week: number;
+  analysts: Analyst[];
+  players: PlayerRanking[];
+}

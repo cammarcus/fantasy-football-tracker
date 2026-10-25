@@ -1,5 +1,5 @@
 import { Credentials, hasEspn, hasSleeper } from "./credentials";
-import type { LeaguesResponse, NflWeek, Platform, WaiversResponse } from "./types";
+import type { LeaguesResponse, NflWeek, Platform, RankingsWeek, WaiversResponse } from "./types";
 
 // Same origin by default: Vercel routes /api/* to the backend, and `next dev` proxies it (next.config.ts).
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -53,6 +53,17 @@ export async function fetchNflWeek(refreshInjuries = false): Promise<NflWeek> {
   }
   if (!resp.ok) throw new Error(`Couldn't load NFL schedule and injuries (HTTP ${resp.status}).`);
   return resp.json() as Promise<NflWeek>;
+}
+
+export async function fetchRankings(season: number, week: number): Promise<RankingsWeek> {
+  let resp: Response;
+  try {
+    resp = await fetch(`${API_URL}/api/rankings?season=${season}&week=${week}`);
+  } catch {
+    throw new Error(`Couldn't reach the API at ${API_URL || "/api"}. Is the backend running?`);
+  }
+  if (!resp.ok) throw new Error(`Couldn't load expert rankings (HTTP ${resp.status}).`);
+  return resp.json() as Promise<RankingsWeek>;
 }
 
 export function fetchLeagues(creds: Credentials): Promise<LeaguesResponse> {

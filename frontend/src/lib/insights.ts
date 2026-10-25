@@ -2,7 +2,8 @@
 
 import { BENCH_SLOTS, myTeam } from "./format";
 import { effectiveInjuryStatus, NflIndex, normalizeName, PlayerRef } from "./nfl";
-import type { InjuryReport, League, Player } from "./types";
+import { averageRank, type RankingsIndex } from "./rankings";
+import type { InjuryReport, League, Player, PlayerRanking } from "./types";
 
 export type Severity = "out" | "risk";
 
@@ -292,4 +293,78 @@ export function flexSwaps(leagues: League[], nfl: NflIndex | null): FlexSwap[] {
     }
   }
   return swaps;
+}
+
+// A benched player most analysts rank ahead of a starter at the same position. Ranks are
+// positional, so only same-position players are compared (not, say, a bench WR against a flex RB).
+export interface ExpertDisagreement {
+  key: string; // stable per week, for the user's mark
+  league: League;
+  benched: Player;
+  starter: Player;
+  benchedRanking: PlayerRanking;
+  starterRanking: PlayerRanking;
+  agree: number; // analysts who rank the benched player higher
+  total: number; // analysts who ranked both
+}
+
+const EXPERT_AGREEMENT = 2 / 3;
+const MIN_ANALYSTS = 4; // fewer than this and it's one or two opinions, not a consensus
+
+export function expertDisagreements(
+  leagues: League[],
+  nfl: NflIndex | null,
+  rankings: RankingsIndex | null,
+): ExpertDisagreement[] {
+  if (!rankings) return [];
+  const { season, week } = rankings.week;
+  // Once a game starts, that player is locked in (or out) of the lineup.
+  const locked = (p: Player) => {
+    const state = nfl?.game(p.nfl_team)?.state;
+    return state === "in_progress" || state === "final";
+  };
+  const result: ExpertDisagreement[] = [];
+  for (const league of leagues) {
+    const me = myTeam(league);
+    if (!me) continue;
+    const starters = me.roster
+      .filter((p) => isStarter(p) && !locked(p))
+      .map((p) => ({ player: p, ranking: rankings.get(p) }))
+      .filter((s): s is { player: Player; ranking: PlayerRanking } => s.ranking !== undefined);
+    for (const benched of me.roster) {
+      if (benched.slot !== "BE" || locked(benched)) continue;
+      const benchedRanking = rankings.get(benched);
+      if (!benchedRanking) continue;
+      let best: ExpertDisagreement | null = null;
+      for (const { player: starter, ranking: starterRanking } of starters) {
+        if (normalizePosition(starter.position) !== normalizePosition(benched.position)) continue;
+        let agree = 0;
+        let total = 0;
+        for (const [analyst, rank] of Object.entries(benchedRanking.ranks)) {
+          const other = starterRanking.ranks[analyst];
+          if (other === undefined) continue;
+          total++;
+          if (rank < other) agree++;
+        }
+        if (total < MIN_ANALYSTS || agree / total < EXPERT_AGREEMENT) continue;
+        // Against several starters, show the one the experts are most sure about, then the weakest one.
+        const ratio = agree / total;
+        const bestRatio = best ? best.agree / best.total : -1;
+        if (ratio > bestRatio || (ratio === bestRatio && averageRank(starterRanking) > averageRank(best!.starterRanking))) {
+          best = {
+            key: `${season}-${week}:${league.platform}:${league.league_id}:${benched.player_id}:${starter.player_id}`,
+            league,
+            benched,
+            starter,
+            benchedRanking,
+            starterRanking,
+            agree,
+            total,
+          };
+        }
+      }
+      if (best) result.push(best);
+    }
+  }
+  return result.sort((a, b) => b.agree / b.total - a.agree / a.total);
 }

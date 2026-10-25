@@ -16,6 +16,7 @@ import {
 } from "@/lib/insights";
 import { timeAgo } from "@/lib/nfl";
 import type { League, Player } from "@/lib/types";
+import ExpertCheck from "./ExpertCheck";
 import GameLine from "./GameLine";
 import { useNfl } from "./NflContext";
 import PlatformBadge from "./PlatformBadge";
@@ -65,6 +66,8 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
           </ul>
         )}
       </section>
+
+      <ExpertCheck leagues={leagues} />
 
       {nfl && (
         <section className="space-y-3">

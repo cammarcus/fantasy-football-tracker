@@ -68,3 +68,10 @@ export function standings(league: League): Team[] {
 export const BENCH_SLOTS = new Set(["BE", "IR", "TAXI"]);
 
 export const PLATFORM_LABEL = { espn: "ESPN", sleeper: "Sleeper" } as const;
+
+// Where to change the lineup: the app is read-only.
+export function leagueUrl(league: League): string {
+  if (league.platform === "sleeper") return `https://sleeper.com/leagues/${league.league_id}`;
+  const team = league.my_team_id ? `&teamId=${league.my_team_id}` : "";
+  return `https://fantasy.espn.com/football/team?leagueId=${league.league_id}${team}`;
+}
