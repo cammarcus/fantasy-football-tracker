@@ -311,6 +311,34 @@ export interface ExpertDisagreement {
 const EXPERT_AGREEMENT = 2 / 3;
 const MIN_ANALYSTS = 4; // fewer than this and it's one or two opinions, not a consensus
 
+// How many analysts rank `a` ahead of `b`, among those who ranked both. Null unless enough
+// analysts ranked both and enough of them agree, so one or two opinions never make a flag.
+function expertAgreement(a: PlayerRanking, b: PlayerRanking): { agree: number; total: number } | null {
+  let agree = 0;
+  let total = 0;
+  for (const [analyst, rank] of Object.entries(a.ranks)) {
+    const other = b.ranks[analyst];
+    if (other === undefined) continue;
+    total++;
+    if (rank < other) agree++;
+  }
+  return total >= MIN_ANALYSTS && agree / total >= EXPERT_AGREEMENT ? { agree, total } : null;
+}
+
+// Once a game starts, that player is locked in (or out) of the lineup.
+function gameStarted(nfl: NflIndex | null, team: string): boolean {
+  const state = nfl?.game(team)?.state;
+  return state === "in_progress" || state === "final";
+}
+
+// The user's starters that analysts ranked and whose games haven't started.
+function rankedStarters(league: League, nfl: NflIndex | null, rankings: RankingsIndex) {
+  return (myTeam(league)?.roster ?? [])
+    .filter((p) => isStarter(p) && !gameStarted(nfl, p.nfl_team))
+    .map((p) => ({ player: p, ranking: rankings.get(p) }))
+    .filter((s): s is { player: Player; ranking: PlayerRanking } => s.ranking !== undefined);
+}
+
 export function expertDisagreements(
   leagues: League[],
   nfl: NflIndex | null,
@@ -318,35 +346,21 @@ export function expertDisagreements(
 ): ExpertDisagreement[] {
   if (!rankings) return [];
   const { season, week } = rankings.week;
-  // Once a game starts, that player is locked in (or out) of the lineup.
-  const locked = (p: Player) => {
-    const state = nfl?.game(p.nfl_team)?.state;
-    return state === "in_progress" || state === "final";
-  };
   const result: ExpertDisagreement[] = [];
   for (const league of leagues) {
     const me = myTeam(league);
     if (!me) continue;
-    const starters = me.roster
-      .filter((p) => isStarter(p) && !locked(p))
-      .map((p) => ({ player: p, ranking: rankings.get(p) }))
-      .filter((s): s is { player: Player; ranking: PlayerRanking } => s.ranking !== undefined);
+    const starters = rankedStarters(league, nfl, rankings);
     for (const benched of me.roster) {
-      if (benched.slot !== "BE" || locked(benched)) continue;
+      if (benched.slot !== "BE" || gameStarted(nfl, benched.nfl_team)) continue;
       const benchedRanking = rankings.get(benched);
       if (!benchedRanking) continue;
       let best: ExpertDisagreement | null = null;
       for (const { player: starter, ranking: starterRanking } of starters) {
         if (normalizePosition(starter.position) !== normalizePosition(benched.position)) continue;
-        let agree = 0;
-        let total = 0;
-        for (const [analyst, rank] of Object.entries(benchedRanking.ranks)) {
-          const other = starterRanking.ranks[analyst];
-          if (other === undefined) continue;
-          total++;
-          if (rank < other) agree++;
-        }
-        if (total < MIN_ANALYSTS || agree / total < EXPERT_AGREEMENT) continue;
+        const agreement = expertAgreement(benchedRanking, starterRanking);
+        if (!agreement) continue;
+        const { agree, total } = agreement;
         // Against several starters, show the one the experts are most sure about, then the weakest one.
         const ratio = agree / total;
         const bestRatio = best ? best.agree / best.total : -1;
@@ -364,6 +378,70 @@ export function expertDisagreements(
         }
       }
       if (best) result.push(best);
+    }
+  }
+  return result.sort((a, b) => b.agree / b.total - a.agree / a.total);
+}
+
+// A player nobody in the league has rostered that most analysts rank ahead of one of the user's
+// starters at the same position. They may be on waivers (claim needed) rather than free agents.
+export interface ExpertPickup {
+  key: string; // stable per week, for the user's mark
+  league: League;
+  starter: Player;
+  starterRanking: PlayerRanking;
+  available: PlayerRanking;
+  agree: number; // analysts who rank the available player higher
+  total: number; // analysts who ranked both
+}
+
+export function expertPickups(
+  leagues: League[],
+  nfl: NflIndex | null,
+  rankings: RankingsIndex | null,
+): ExpertPickup[] {
+  if (!rankings) return [];
+  const { season, week } = rankings.week;
+  const result: ExpertPickup[] = [];
+  for (const league of leagues) {
+    if (!myTeam(league)) continue;
+    const rostered = league.teams.flatMap((t) => t.roster);
+    const taken = new Set(rostered.map(playerKey));
+    // A position nobody rosters (kickers in a no-K league, IDP) probably isn't used there.
+    const positions = new Set(rostered.map((p) => normalizePosition(p.position)));
+    const available = rankings.week.players.filter(
+      (r) => !taken.has(playerKey(r)) && positions.has(normalizePosition(r.position)) && !gameStarted(nfl, r.nfl_team),
+    );
+    // Weakest starters first, since they're the ones a pickup would replace. Each available
+    // player is suggested once per league, against the weakest starter they beat.
+    const starters = rankedStarters(league, nfl, rankings).sort(
+      (a, b) => averageRank(b.ranking) - averageRank(a.ranking),
+    );
+    const suggested = new Set<string>();
+    for (const { player: starter, ranking: starterRanking } of starters) {
+      let best: ExpertPickup | null = null;
+      for (const candidate of available) {
+        const key = playerKey(candidate);
+        if (suggested.has(key) || normalizePosition(candidate.position) !== normalizePosition(starter.position)) continue;
+        const agreement = expertAgreement(candidate, starterRanking);
+        if (!agreement) continue;
+        const ratio = agreement.agree / agreement.total;
+        const bestRatio = best ? best.agree / best.total : -1;
+        if (ratio > bestRatio || (ratio === bestRatio && averageRank(candidate) < averageRank(best!.available))) {
+          best = {
+            key: `pickup:${season}-${week}:${league.platform}:${league.league_id}:${key}:${starter.player_id}`,
+            league,
+            starter,
+            starterRanking,
+            available: candidate,
+            ...agreement,
+          };
+        }
+      }
+      if (best) {
+        suggested.add(playerKey(best.available));
+        result.push(best);
+      }
     }
   }
   return result.sort((a, b) => b.agree / b.total - a.agree / a.total);

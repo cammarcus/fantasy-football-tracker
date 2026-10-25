@@ -1,10 +1,10 @@
 "use client";
 
 import { leagueUrl, PLATFORM_LABEL } from "@/lib/format";
-import { ExpertDisagreement, expertDisagreements } from "@/lib/insights";
+import { ExpertDisagreement, expertDisagreements, ExpertPickup, expertPickups } from "@/lib/insights";
 import { MarkState, setMark, useMarks } from "@/lib/marks";
 import { averageRank, RankingsIndex } from "@/lib/rankings";
-import type { League } from "@/lib/types";
+import type { League, PlayerRanking } from "@/lib/types";
 import { LeagueLabel } from "./LineupCheck";
 import { useNfl } from "./NflContext";
 
@@ -14,6 +14,9 @@ export default function ExpertCheck({ leagues }: { leagues: League[] }) {
   const flags = expertDisagreements(leagues, nfl, rankings);
   const open = flags.filter((f) => marks[f.key]?.state !== "aware");
   const intentional = flags.filter((f) => marks[f.key]?.state === "aware");
+  const pickups = expertPickups(leagues, nfl, rankings);
+  const pickupsOpen = pickups.filter((f) => marks[f.key]?.state !== "aware");
+  const pickupsDismissed = pickups.filter((f) => marks[f.key]?.state === "aware");
 
   return (
     <section id="experts" className="scroll-mt-16 space-y-3">
@@ -51,7 +54,154 @@ export default function ExpertCheck({ leagues }: { leagues: League[] }) {
           </ul>
         </details>
       )}
+
+      {rankings && rankings.week.players.length > 0 && (
+        <div id="pickups" className="scroll-mt-16 space-y-3 pt-2">
+          <div>
+            <h3 className="font-medium">Free agents the experts would start</h3>
+            <p className="text-sm text-zinc-500">
+              Players nobody in your league has rostered that most analysts rank ahead of one of your starters. They
+              may be on waivers (claim needed) rather than free to add.
+            </p>
+          </div>
+          {pickupsOpen.length === 0 ? (
+            <p className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-500 dark:border-zinc-800">
+              {pickupsDismissed.length
+                ? "Nothing new on the wire: you've reviewed every suggestion."
+                : "No free agent beats your starters this week."}
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {pickupsOpen.map((f) => (
+                <PickupRow key={f.key} pickup={f} rankings={rankings} state={marks[f.key]?.state} />
+              ))}
+            </ul>
+          )}
+          {pickupsDismissed.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-zinc-500">Not interested ({pickupsDismissed.length})</summary>
+              <ul className="mt-2 space-y-3">
+                {pickupsDismissed.map((f) => (
+                  <PickupRow key={f.key} pickup={f} rankings={rankings} state="aware" />
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
     </section>
+  );
+}
+
+// "aware" means not interested; "accident" means the user plans to add the player.
+function PickupRow({
+  pickup,
+  rankings,
+  state,
+}: {
+  pickup: ExpertPickup;
+  rankings: RankingsIndex;
+  state: MarkState | undefined;
+}) {
+  const { league, starter, starterRanking, available, agree, total } = pickup;
+  const border =
+    state === "accident"
+      ? "border-emerald-300 dark:border-emerald-900"
+      : state === "aware"
+        ? "border-zinc-200 opacity-70 dark:border-zinc-800"
+        : "border-sky-200 dark:border-sky-900";
+
+  return (
+    <li className={`space-y-2 rounded-lg border p-3 text-sm ${border}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p>
+            <span className="font-medium">{available.name}</span>
+            <span className="ml-1 text-xs text-zinc-500">
+              ({available.position} · {available.nfl_team})
+            </span>
+            <span className="text-zinc-500"> is available, ranked over your </span>
+            <span className="font-medium">{starter.name}</span>
+            <span className="ml-1 text-xs text-zinc-500">({starter.slot})</span>
+          </p>
+          <p className="text-xs text-zinc-500">
+            {agree} of {total} analysts rank {available.name} higher · avg {available.position} rank{" "}
+            {averageRank(available).toFixed(1)} vs {averageRank(starterRanking).toFixed(1)}
+          </p>
+        </div>
+        <LeagueLabel league={league} />
+      </div>
+
+      <RanksTable
+        rankings={rankings}
+        a={{ name: available.name, ranking: available }}
+        b={{ name: starter.name, ranking: starterRanking }}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        {state === undefined && (
+          <>
+            <MarkButton onClick={() => setMark(pickup.key, "aware")}>Not interested</MarkButton>
+            <MarkButton onClick={() => setMark(pickup.key, "accident")}>Planning to add</MarkButton>
+          </>
+        )}
+        {state === "accident" && (
+          <a
+            href={leagueUrl(league)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-800"
+          >
+            Open {league.name} in {PLATFORM_LABEL[league.platform]} ↗
+          </a>
+        )}
+        {state !== undefined && <MarkButton onClick={() => setMark(pickup.key, null)}>Undo</MarkButton>}
+      </div>
+    </li>
+  );
+}
+
+// Each analyst's rank for two players, the better one in bold.
+function RanksTable({
+  rankings,
+  a,
+  b,
+}: {
+  rankings: RankingsIndex;
+  a: { name: string; ranking: PlayerRanking };
+  b: { name: string; ranking: PlayerRanking };
+}) {
+  const analysts = rankings.week.analysts.filter(
+    (x) => a.ranking.ranks[x.id] !== undefined && b.ranking.ranks[x.id] !== undefined,
+  );
+  return (
+    <details>
+      <summary className="cursor-pointer text-xs text-zinc-500">Each analyst&apos;s ranks</summary>
+      <div className="overflow-x-auto">
+        <table className="mt-1 text-xs">
+          <thead className="text-zinc-500">
+            <tr>
+              <th className="pr-4 text-left font-medium">Analyst</th>
+              <th className="pr-4 text-right font-medium">{a.name}</th>
+              <th className="text-right font-medium">{b.name}</th>
+            </tr>
+          </thead>
+          <tbody className="tabular-nums">
+            {analysts.map((x) => {
+              const ra = a.ranking.ranks[x.id];
+              const rb = b.ranking.ranks[x.id];
+              return (
+                <tr key={x.id}>
+                  <td className="pr-4">{x.name}</td>
+                  <td className={`pr-4 text-right ${ra < rb ? "font-semibold" : ""}`}>{ra}</td>
+                  <td className={`text-right ${rb < ra ? "font-semibold" : ""}`}>{rb}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }
 
@@ -71,10 +221,6 @@ function FlagRow({
       : state === "aware"
         ? "border-zinc-200 opacity-70 dark:border-zinc-800"
         : "border-amber-200 dark:border-amber-900";
-  const analysts = rankings.week.analysts.filter(
-    (a) => benchedRanking.ranks[a.id] !== undefined && starterRanking.ranks[a.id] !== undefined,
-  );
-
   return (
     <li className={`space-y-2 rounded-lg border p-3 text-sm ${border}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -93,33 +239,11 @@ function FlagRow({
         <LeagueLabel league={league} />
       </div>
 
-      <details>
-        <summary className="cursor-pointer text-xs text-zinc-500">Each analyst&apos;s ranks</summary>
-        <div className="overflow-x-auto">
-          <table className="mt-1 text-xs">
-            <thead className="text-zinc-500">
-              <tr>
-                <th className="pr-4 text-left font-medium">Analyst</th>
-                <th className="pr-4 text-right font-medium">{benched.name}</th>
-                <th className="text-right font-medium">{starter.name}</th>
-              </tr>
-            </thead>
-            <tbody className="tabular-nums">
-              {analysts.map((a) => {
-                const b = benchedRanking.ranks[a.id];
-                const s = starterRanking.ranks[a.id];
-                return (
-                  <tr key={a.id}>
-                    <td className="pr-4">{a.name}</td>
-                    <td className={`pr-4 text-right ${b < s ? "font-semibold" : ""}`}>{b}</td>
-                    <td className={`text-right ${s < b ? "font-semibold" : ""}`}>{s}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </details>
+      <RanksTable
+        rankings={rankings}
+        a={{ name: benched.name, ranking: benchedRanking }}
+        b={{ name: starter.name, ranking: starterRanking }}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         {state === undefined && (

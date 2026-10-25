@@ -4,6 +4,7 @@ import {
   AvailableStarter,
   availableElsewhere,
   expertDisagreements,
+  expertPickups,
   FlexSwap,
   flexSwaps,
   LineupAlert,
@@ -34,9 +35,12 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
   const available = availableElsewhere(leagues, owned);
   const swaps = flexSwaps(leagues, nfl);
   const expertCount = expertDisagreements(leagues, nfl, rankings).filter((f) => marks[f.key]?.state !== "aware").length;
+  const pickupCount = expertPickups(leagues, nfl, rankings).filter((f) => marks[f.key]?.state !== "aware").length;
   const jumps = [
     { id: "injuries", label: "May not play", count: alerts.length },
     { id: "experts", label: "Experts", count: expertCount },
+    // Pickups are opportunities, not problems, so their count isn't red.
+    ...(rankings?.week.players.length ? [{ id: "pickups", label: "Pickups", count: pickupCount, tone: "info" }] : []),
     ...(nfl ? [{ id: "flex", label: "Flex order", count: swaps.length }] : []),
     { id: "mismatches", label: "Start/sit", count: pairs.length + mismatches.length },
     { id: "available", label: "Waiver wires", count: available.length },
@@ -55,9 +59,11 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
             {j.label}
             <span
               className={`rounded-full px-1.5 tabular-nums ${
-                j.count
-                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
-                  : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                !j.count
+                  ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                  : "tone" in j && j.tone === "info"
+                    ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                    : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
               }`}
             >
               {j.count}
