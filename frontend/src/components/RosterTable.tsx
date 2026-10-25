@@ -21,7 +21,7 @@ export default function RosterTable({ title, players }: { title: string; players
               {p.name}
               <InjuryTag status={effectiveInjuryStatus(p, nfl)} />
             </span>
-            <span className="shrink-0 text-right text-xs text-zinc-500">
+            <span className="min-w-0 text-right text-xs text-zinc-500">
               {p.position} · {p.nfl_team}
               <GameLine team={p.nfl_team} />
             </span>

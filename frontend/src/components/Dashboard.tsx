@@ -103,7 +103,7 @@ export default function Dashboard() {
             </p>
           )}
         </div>
-        <div className="flex gap-2 text-sm">
+        <div className="flex flex-wrap gap-2 text-sm">
           <HeaderButton onClick={refresh} disabled={data.status === "loading"}>
             Refresh
           </HeaderButton>
@@ -113,7 +113,7 @@ export default function Dashboard() {
       </div>
 
       {data.status === "loading" && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-40 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900" />
           ))}
@@ -137,12 +137,12 @@ export default function Dashboard() {
             <p className="text-sm text-zinc-500">No leagues found for this season.</p>
           )}
           {leagues.length > 0 && (
-            <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="sticky top-0 z-10 flex flex-wrap gap-x-1 border-b border-zinc-200 bg-background dark:border-zinc-800">
               {VIEWS.map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
+                  className={`-mb-px flex flex-auto items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-2.5 text-sm font-medium sm:flex-none sm:px-3 ${
                     v === view
                       ? "border-zinc-900 dark:border-zinc-100"
                       : "border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -159,7 +159,7 @@ export default function Dashboard() {
             </div>
           )}
           {view === "Leagues" && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {leagues.map((l) => (
                 <LeagueCard
                   key={`${l.platform}:${l.league_id}`}
@@ -181,7 +181,7 @@ function HeaderButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className="rounded-md border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+      className="whitespace-nowrap rounded-md border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
     />
   );
 }

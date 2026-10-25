@@ -14,7 +14,8 @@ account credentials and the app discovers and loads every league, with no league
   - `app/teams.py`: NFL team abbreviation normalization.
   - `scripts/fetch_leagues.py`: CLI that calls the running API using credentials from `backend/.env`.
 - `frontend/`: Next.js 16 + React 19 + Tailwind 4, TypeScript. Client components only.
-  - `src/lib/`: API client, types (mirror `models.py`), credential storage, cross-league insights, NFL joins.
+  - `src/lib/`: API client, types (mirror `models.py`), credential storage, cross-league insights, NFL joins,
+    theme (`data-theme` on `<html>`, set before paint; Tailwind `dark:` keys off it, not the media query).
   - `src/components/`: UI. `Dashboard.tsx` is the root; `NflContext.tsx` provides NFL data to everything.
 
 ## Running

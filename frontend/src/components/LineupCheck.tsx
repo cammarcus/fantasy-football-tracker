@@ -3,6 +3,7 @@
 import {
   AvailableStarter,
   availableElsewhere,
+  expertDisagreements,
   FlexSwap,
   flexSwaps,
   LineupAlert,
@@ -14,6 +15,7 @@ import {
   startingInstead,
   unpairedMismatches,
 } from "@/lib/insights";
+import { useMarks } from "@/lib/marks";
 import { timeAgo } from "@/lib/nfl";
 import type { League, Player } from "@/lib/types";
 import ExpertCheck from "./ExpertCheck";
@@ -23,17 +25,48 @@ import PlatformBadge from "./PlatformBadge";
 import { InjuryTag } from "./RosterTable";
 
 export default function LineupCheck({ leagues }: { leagues: League[] }) {
-  const { nfl, error, refreshing, refreshInjuries } = useNfl();
+  const { nfl, error, refreshing, refreshInjuries, rankings } = useNfl();
+  const marks = useMarks();
   const alerts = lineupAlerts(leagues, nfl);
   const owned = ownedPlayers(leagues, nfl);
   const pairs = reversedPairs(owned);
   const mismatches = unpairedMismatches(owned, pairs);
   const available = availableElsewhere(leagues, owned);
   const swaps = flexSwaps(leagues, nfl);
+  const expertCount = expertDisagreements(leagues, nfl, rankings).filter((f) => marks[f.key]?.state !== "aware").length;
+  const jumps = [
+    { id: "injuries", label: "May not play", count: alerts.length },
+    { id: "experts", label: "Experts", count: expertCount },
+    ...(nfl ? [{ id: "flex", label: "Flex order", count: swaps.length }] : []),
+    { id: "mismatches", label: "Start/sit", count: pairs.length + mismatches.length },
+    { id: "available", label: "Waiver wires", count: available.length },
+  ];
 
   return (
     <div className="space-y-8">
-      <section className="space-y-3">
+      {/* The page is long on a phone, so each section is one tap away. */}
+      <nav className="flex flex-wrap gap-2">
+        {jumps.map((j) => (
+          <a
+            key={j.id}
+            href={`#${j.id}`}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          >
+            {j.label}
+            <span
+              className={`rounded-full px-1.5 tabular-nums ${
+                j.count
+                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                  : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+              }`}
+            >
+              {j.count}
+            </span>
+          </a>
+        ))}
+      </nav>
+
+      <section id="injuries" className="scroll-mt-16 space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-semibold">Starters who may not play</h2>
@@ -45,7 +78,7 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
           <button
             onClick={refreshInjuries}
             disabled={refreshing}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
             {refreshing ? "Refreshing…" : "Refresh injuries"}
           </button>
@@ -70,7 +103,7 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
       <ExpertCheck leagues={leagues} />
 
       {nfl && (
-        <section className="space-y-3">
+        <section id="flex" className="scroll-mt-16 space-y-3">
           <div>
             <h2 className="font-semibold">Flex order</h2>
             <p className="text-sm text-zinc-500">
@@ -93,7 +126,7 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
         </section>
       )}
 
-      <section className="space-y-3">
+      <section id="mismatches" className="scroll-mt-16 space-y-3">
         <div>
           <h2 className="font-semibold">Start/sit mismatches</h2>
           <p className="text-sm text-zinc-500">
@@ -115,7 +148,7 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
         )}
       </section>
 
-      <section className="space-y-3">
+      <section id="available" className="scroll-mt-16 space-y-3">
         <div>
           <h2 className="font-semibold">Your starters on other leagues&apos; waiver wires</h2>
           <p className="text-sm text-zinc-500">
@@ -140,13 +173,13 @@ export default function LineupCheck({ leagues }: { leagues: League[] }) {
 function AlertRow({ alert }: { alert: LineupAlert }) {
   const { league, player, severity, reason, status, report } = alert;
   return (
-    <li className="space-y-1 px-3 py-2 text-sm">
-      <div className="flex items-center gap-3">
-        <span
-          className={`h-2 w-2 shrink-0 rounded-full ${severity === "out" ? "bg-red-500" : "bg-amber-400"}`}
-          aria-label={severity === "out" ? "Won't play" : "At risk"}
-        />
-        <span className="min-w-0 flex-1 truncate">
+    <li className="flex items-start gap-3 px-3 py-2.5 text-sm">
+      <span
+        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${severity === "out" ? "bg-red-500" : "bg-amber-400"}`}
+        aria-label={severity === "out" ? "Won't play" : "At risk"}
+      />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p>
           {player.name}
           {reason === "bye" ? (
             <span className="ml-2 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800 dark:bg-red-950 dark:text-red-300">
@@ -158,20 +191,16 @@ function AlertRow({ alert }: { alert: LineupAlert }) {
           <span className="ml-2 text-xs text-zinc-500">
             {player.slot} · {player.nfl_team}
           </span>
-        </span>
-        <LeagueLabel league={league} />
-      </div>
-      {reason === "injury" && report?.comment && (
-        <p className="pl-5 text-xs text-zinc-500">
-          {report.comment}
-          {report.updated && <span className="text-zinc-400"> · {timeAgo(report.updated)}</span>}
         </p>
-      )}
-      {reason === "injury" && (
-        <div className="pl-5">
-          <GameLine team={player.nfl_team} />
-        </div>
-      )}
+        <LeagueLabel league={league} />
+        {reason === "injury" && report?.comment && (
+          <p className="text-xs text-zinc-500">
+            {report.comment}
+            {report.updated && <span className="text-zinc-400"> · {timeAgo(report.updated)}</span>}
+          </p>
+        )}
+        {reason === "injury" && <GameLine team={player.nfl_team} />}
+      </div>
     </li>
   );
 }
@@ -183,20 +212,18 @@ function kickoffLabel(iso: string): string {
 function SwapRow({ swap }: { swap: FlexSwap }) {
   const { league, flex, positional, flexKickoff, positionalKickoff } = swap;
   return (
-    <li className="space-y-1 px-3 py-2 text-sm">
-      <div className="flex items-center gap-3">
-        <span className="min-w-0 flex-1">
-          Swap <span className="font-medium">{flex.name}</span>
+    <li className="space-y-1.5 px-3 py-2.5 text-sm">
+      <LeagueLabel league={league} />
+      <p>
+        Swap <span className="font-medium">{flex.name}</span>
           <span className="ml-1 text-xs text-zinc-500">
             ({flex.slot}, {kickoffLabel(flexKickoff)})
-          </span>{" "}
-          and <span className="font-medium">{positional.name}</span>
-          <span className="ml-1 text-xs text-zinc-500">
-            ({positional.slot}, {kickoffLabel(positionalKickoff)})
-          </span>
+        </span>{" "}
+        and <span className="font-medium">{positional.name}</span>
+        <span className="ml-1 text-xs text-zinc-500">
+          ({positional.slot}, {kickoffLabel(positionalKickoff)})
         </span>
-        <LeagueLabel league={league} />
-      </div>
+      </p>
       <p className="text-xs text-zinc-500">
         Move {positional.name} to {flex.slot} and {flex.name} to {positional.slot}.
       </p>
@@ -217,16 +244,18 @@ function MismatchRow({ player }: { player: OwnedPlayer }) {
       <GameLine team={player.nflTeam} />
       <ul className="mt-2 space-y-1">
         {player.placements.map(({ league, player: p, started }) => (
-          <li key={`${league.platform}:${league.league_id}`} className="flex items-center gap-2 text-sm">
+          <li key={`${league.platform}:${league.league_id}`} className="flex gap-2 text-sm">
             <span
-              className={`w-20 shrink-0 text-xs font-medium ${
+              className={`w-24 min-w-0 text-xs font-medium ${
                 started ? "text-emerald-700 dark:text-emerald-400" : "text-zinc-500"
               }`}
             >
               {started ? `Starting (${p.slot})` : p.slot === "BE" ? "Bench" : p.slot}
             </span>
-            <LeagueLabel league={league} />
-            {p.slot === "BE" && <StartingInstead league={league} benched={p} />}
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <LeagueLabel league={league} />
+              {p.slot === "BE" && <StartingInstead league={league} benched={p} />}
+            </div>
           </li>
         ))}
       </ul>
@@ -238,9 +267,9 @@ function StartingInstead({ league, benched }: { league: League; benched: Player 
   const instead = startingInstead(league, benched);
   if (!instead.length) return null;
   return (
-    <span className="min-w-0 truncate text-xs text-zinc-500">
+    <p className="wrap-break-word text-xs text-zinc-500">
       for {instead.map((p) => `${p.name} (${p.slot})`).join(", ")}
-    </span>
+    </p>
   );
 }
 
@@ -253,18 +282,18 @@ function PairRow({ pair }: { pair: ReversedPair }) {
         <span className="ml-2 text-xs font-normal text-zinc-500">{a.position}</span>
       </p>
       <p className="text-xs text-zinc-500">Opposite start/bench calls in different leagues.</p>
-      <ul className="mt-2 space-y-1">
+      <ul className="mt-2 space-y-2">
         {[
           { leagues: aOverB, start: a, sit: b },
           { leagues: bOverA, start: b, sit: a },
         ].flatMap(({ leagues, start, sit }) =>
           leagues.map((league) => (
-            <li key={`${league.platform}:${league.league_id}`} className="flex items-center gap-2 text-sm">
-              <span className="min-w-0 flex-1 truncate">
+            <li key={`${league.platform}:${league.league_id}`} className="space-y-0.5 text-sm">
+              <LeagueLabel league={league} />
+              <p>
                 <span className="text-emerald-700 dark:text-emerald-400">Start {start.name}</span>
                 <span className="text-zinc-500"> · bench {sit.name}</span>
-              </span>
-              <LeagueLabel league={league} />
+              </p>
             </li>
           )),
         )}

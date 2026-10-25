@@ -64,7 +64,7 @@ export default function WaiverWire({
           <button
             key={pos}
             onClick={() => choose(pos)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
               pos === position
                 ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:ring-zinc-100"
                 : "text-zinc-600 ring-zinc-300 hover:bg-zinc-100 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-900"
@@ -91,17 +91,22 @@ export default function WaiverWire({
             {state.players.map((p) => (
               <li key={p.player_id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <span className="w-10 shrink-0 text-xs font-medium text-zinc-500">{p.position}</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {p.name}
-                  <InjuryTag status={effectiveInjuryStatus(p, nfl)} />
-                  <span className="ml-2 text-xs text-zinc-500">{p.nfl_team}</span>
-                  <OwnedElsewhere placements={mine.get(playerKey(p))} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">
+                    {p.name}
+                    <InjuryTag status={effectiveInjuryStatus(p, nfl)} />
+                    <span className="ml-2 text-xs text-zinc-500">{p.nfl_team}</span>
+                  </span>
                   <GameLine team={p.nfl_team} />
+                  <OwnedElsewhere placements={mine.get(playerKey(p))} />
                 </span>
                 <span className="shrink-0 text-right text-xs tabular-nums text-zinc-600 dark:text-zinc-400">
-                  {isEspn
-                    ? `${p.percent_owned ?? 0}% · ${p.projected_points ?? 0} proj`
-                    : p.trending_adds
+                  {isEspn ? (
+                    <>
+                      <span className="block">{p.percent_owned ?? 0}%</span>
+                      <span className="block">{p.projected_points ?? 0} proj</span>
+                    </>
+                  ) : p.trending_adds
                       ? `+${p.trending_adds.toLocaleString()}`
                       : ""}
                 </span>
@@ -121,7 +126,7 @@ function OwnedElsewhere({ placements }: { placements: Placement[] | undefined })
   const names = shown.map((pl) => pl.league.name).join(", ");
   return (
     <span
-      className={`ml-2 rounded px-1 py-0.5 text-[10px] font-semibold ${
+      className={`mt-0.5 inline-block max-w-full truncate rounded px-1 py-0.5 text-[10px] font-semibold ${
         started.length
           ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
           : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"

@@ -16,7 +16,7 @@ export default function ExpertCheck({ leagues }: { leagues: League[] }) {
   const intentional = flags.filter((f) => marks[f.key]?.state === "aware");
 
   return (
-    <section className="space-y-3">
+    <section id="experts" className="scroll-mt-16 space-y-3">
       <div>
         <h2 className="font-semibold">Experts disagree</h2>
         <p className="text-sm text-zinc-500">
@@ -95,28 +95,30 @@ function FlagRow({
 
       <details>
         <summary className="cursor-pointer text-xs text-zinc-500">Each analyst&apos;s ranks</summary>
-        <table className="mt-1 text-xs">
-          <thead className="text-zinc-500">
-            <tr>
-              <th className="pr-4 text-left font-medium">Analyst</th>
-              <th className="pr-4 text-right font-medium">{benched.name}</th>
-              <th className="text-right font-medium">{starter.name}</th>
-            </tr>
-          </thead>
-          <tbody className="tabular-nums">
-            {analysts.map((a) => {
-              const b = benchedRanking.ranks[a.id];
-              const s = starterRanking.ranks[a.id];
-              return (
-                <tr key={a.id}>
-                  <td className="pr-4">{a.name}</td>
-                  <td className={`pr-4 text-right ${b < s ? "font-semibold" : ""}`}>{b}</td>
-                  <td className={`text-right ${s < b ? "font-semibold" : ""}`}>{s}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="mt-1 text-xs">
+            <thead className="text-zinc-500">
+              <tr>
+                <th className="pr-4 text-left font-medium">Analyst</th>
+                <th className="pr-4 text-right font-medium">{benched.name}</th>
+                <th className="text-right font-medium">{starter.name}</th>
+              </tr>
+            </thead>
+            <tbody className="tabular-nums">
+              {analysts.map((a) => {
+                const b = benchedRanking.ranks[a.id];
+                const s = starterRanking.ranks[a.id];
+                return (
+                  <tr key={a.id}>
+                    <td className="pr-4">{a.name}</td>
+                    <td className={`pr-4 text-right ${b < s ? "font-semibold" : ""}`}>{b}</td>
+                    <td className={`text-right ${s < b ? "font-semibold" : ""}`}>{s}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </details>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -132,7 +134,7 @@ function FlagRow({
               href={leagueUrl(league)}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700"
+              className="rounded-md bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700"
             >
               Fix it in {PLATFORM_LABEL[league.platform]} ↗
             </a>
@@ -149,7 +151,7 @@ function MarkButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+      className="rounded-md border border-zinc-300 px-3 py-2 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
     />
   );
 }

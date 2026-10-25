@@ -42,12 +42,12 @@ export default function LeagueDetail({
         </p>
       </div>
 
-      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="sticky top-0 z-10 flex flex-wrap gap-x-1 border-b border-zinc-200 bg-background dark:border-zinc-800">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            className={`-mb-px flex-auto whitespace-nowrap border-b-2 px-2 py-2.5 text-center text-sm font-medium sm:flex-none sm:px-3 ${
               t === tab
                 ? "border-zinc-900 dark:border-zinc-100"
                 : "border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -95,7 +95,7 @@ export default function LeagueDetail({
                 <th className="px-3 py-2 font-medium">Team</th>
                 <th className="px-3 py-2 font-medium">Record</th>
                 <th className="px-3 py-2 text-right font-medium">PF</th>
-                <th className="px-3 py-2 text-right font-medium">PA</th>
+                <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">PA</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -110,8 +110,11 @@ export default function LeagueDetail({
                     <p className="text-xs text-zinc-500">{t.owner}</p>
                   </td>
                   <td className="px-3 py-2 tabular-nums">{record(t)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{points(t.points_for)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{points(t.points_against)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {points(t.points_for)}
+                    <span className="block text-xs text-zinc-500 sm:hidden">{points(t.points_against)} PA</span>
+                  </td>
+                  <td className="hidden px-3 py-2 text-right tabular-nums sm:table-cell">{points(t.points_against)}</td>
                 </tr>
               ))}
             </tbody>
