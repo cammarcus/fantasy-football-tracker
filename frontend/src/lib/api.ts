@@ -66,8 +66,10 @@ export async function fetchRankings(season: number, week: number): Promise<Ranki
   return resp.json() as Promise<RankingsWeek>;
 }
 
-export function fetchLeagues(creds: Credentials): Promise<LeaguesResponse> {
-  return post<LeaguesResponse>("/api/leagues", accountsBody(creds));
+// One platform per request, so a slow or failing platform doesn't hold up the other.
+export function fetchLeagues(creds: Credentials, platform: Platform): Promise<LeaguesResponse> {
+  const body = accountsBody(creds);
+  return post<LeaguesResponse>("/api/leagues", platform === "espn" ? { espn: body.espn } : { sleeper: body.sleeper });
 }
 
 export async function fetchWaivers(

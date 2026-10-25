@@ -62,6 +62,11 @@ Checks: `cd frontend && npx eslint src && npx tsc --noEmit && npm run build`. If
 - **Credentials:** ESPN needs the `SWID` and `espn_s2` cookies (DevTools → Application → Cookies →
   `https://fantasy.espn.com`). `espn_s2` is a login session, so treat it like a password. Password login
   isn't possible because ESPN requires reCAPTCHA (see the comment in `espn_api/requests/espn_requests.py`).
+  `espn_s2` is not HttpOnly (checked 2026-10-24), so `lib/espnCookies.ts` can read both cookies from page
+  scripts: a console snippet on a computer, and on phones a bookmarklet that opens the app with them in the URL
+  fragment (never sent to a server). The app asks before using a fragment hand-off, since any link could carry
+  someone else's cookies. If ESPN ever makes espn_s2 HttpOnly, both break and only the manual fields work. A
+  browser extension (FantasyPros' approach) is the next step up.
 - **Player matching:** ESPN and Sleeper player IDs differ, so cross-league matching uses normalized name
   plus position (`playerKey` in `frontend/src/lib/insights.ts`, `normalizeName` in `nfl.ts`): it strips
   Jr./III and punctuation. Defenses match by NFL team ("Titans D/ST" vs "Tennessee Titans").

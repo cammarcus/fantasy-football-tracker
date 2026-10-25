@@ -169,7 +169,12 @@ async def _run_per_league(creds: EspnCredentials, season: int, load, *extra_args
         try:
             targets = [t for t in await discover_leagues(creds) if t["season"] == season]
         except httpx.HTTPError as e:
-            return [], [LeagueError(platform="espn", message=f"Could not discover ESPN leagues: {_safe_error_message(e)}")]
+            # The fan API answers 404 for a SWID it doesn't know, which is almost always a copy mistake.
+            if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 404:
+                message = "ESPN didn't recognize that SWID. Copy it again from fantasy.espn.com while logged in."
+            else:
+                message = f"Could not discover ESPN leagues: {_safe_error_message(e)}"
+            return [], [LeagueError(platform="espn", message=message)]
         if not targets:
             return [], [
                 LeagueError(
